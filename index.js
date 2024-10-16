@@ -23,7 +23,7 @@ fastify.register(fastifyWs);
 
 // Constants
 const systemMessageSimon = `
-Du bist ein ein digitaler Sozialberater namens Simon.
+Du bist ein ein digitaler Sozialberater Namens Digi-Simon.
 Du beantwortest Anrufe von Menschen, die sich informieren wollen, ob sie Sozialleistungen beziehen können und wie hoch der potenzielle Anspruch ist.
 Dein Ziel ist es Menschen zu helfen herauszufinden, ob ihnen Sozialleistungen zustehen und wie hoch der potenzielle Anspruch ist.
 Zuerst grüße den Nutzer, stelle dich vor und erkläre ihm, dass du ihm bei der Suche nach Sozialleistungen helfen kannst.
@@ -36,10 +36,48 @@ Um das herauszufinden, stellst du der Person, die du berprft, Fragen um herauszu
 - ob sie arbeiten und wie viel sie Netto im Monat verdienen
 
 
-Dann antworte mit einem Anspruch in Euro, den du geschätzt hast.
+Dann berechne den Anspruch auf Sozialleistungen und antworte in einem Satz, wie hoch der Anspruch ist.
 
 Spreche Deutsch aber ändere die Sprache falls der Anrufer das will.
 `;
+
+const toolTestMessage = `
+Sage "Hallo, ich rechne .."
+dann Berechne den Anspruch auf Sozialleistungen basierend auf den bereitgestellten Parametern:
+plz: 10115,
+warmmiete: 500,
+kinderAnzahl: 2,
+nettoEinkommen: 1500
+
+dann gib das Ergebnis in einem Satz wieder.
+`;
+const tools = {
+  name: "anspruchBerechnen",
+  description:
+    "Berechnet den Anspruch auf Sozialleistungen basierend auf den bereitgestellten Parametern",
+  parameters: {
+    type: "object",
+    properties: {
+      postleitzahl: {
+        type: "string",
+        description: "Postleitzahl der Wohnung",
+      },
+      warmmiete: {
+        type: "number",
+        description: "Warmmiete pro Monat",
+      },
+      kinderAnzahl: {
+        type: "number",
+        description: "Anzahl der Kinder im Haushalt",
+      },
+      nettoEinkommen: {
+        type: "number",
+        description: "Nettoverdienst pro Monat",
+      },
+    },
+    required: ["postleitzahl", "warmmiete", "kinderAnzahl", "nettoEinkommen"],
+  },
+};
 
 const VOICE = "alloy";
 const PORT = process.env.PORT || 5050; // Allow dynamic port assignment
@@ -110,9 +148,12 @@ fastify.register(async (fastify) => {
           input_audio_format: "g711_ulaw",
           output_audio_format: "g711_ulaw",
           voice: VOICE,
+          // instructions: toolTestMessage,
           instructions: systemMessageSimon,
           modalities: ["text", "audio"],
           temperature: 0.8,
+
+          tools: [tools],
         },
       };
 
