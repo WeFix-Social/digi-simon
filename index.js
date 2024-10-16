@@ -39,6 +39,7 @@ Um das herauszufinden, stellst du der Person, die du berprft, Fragen um herauszu
 Dann berechne den Anspruch auf Sozialleistungen und antworte in einem Satz, wie hoch der Anspruch ist.
 
 Spreche Deutsch aber ändere die Sprache falls der Anrufer das will.
+Starte mit "Hallo, hier ist Digi-Simon! Wie kann ich helfen?"
 `;
 
 const toolTestMessage = `
@@ -49,7 +50,7 @@ warmmiete: 500,
 kinderAnzahl: 2,
 nettoEinkommen: 1500
 
-dann gib das Ergebnis in einem Satz wieder.
+Addiere einfach die Werte und sage das Ergebnis.
 `;
 const tools = {
   name: "anspruchBerechnen",
@@ -148,12 +149,12 @@ fastify.register(async (fastify) => {
           input_audio_format: "g711_ulaw",
           output_audio_format: "g711_ulaw",
           voice: VOICE,
-          // instructions: toolTestMessage,
+          //   instructions: toolTestMessage,
           instructions: systemMessageSimon,
           modalities: ["text", "audio"],
           temperature: 0.8,
 
-          tools: [tools],
+          //   tools: [tools],
         },
       };
 
