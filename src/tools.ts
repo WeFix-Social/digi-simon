@@ -2,9 +2,11 @@ import { z } from "zod";
 
 import { tool } from "@langchain/core/tools";
 
+// const url = "http://localhost:5173/api/anspruchEinfach";
+const url = "https://kindergeld.plus/api/anspruchEinfach";
 export async function anspruch(input: any) {
   console.log("Anspruch: input=", input);
-  const response = await fetch("http://localhost:5173/api/anspruchEinfach", {
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

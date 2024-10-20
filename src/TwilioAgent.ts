@@ -17,6 +17,39 @@ export class TwilioAgent {
   private sentToTwilio: number = 0;
   private receivedFromTwilio: number = 0;
 
+  private inactivityTimer: NodeJS.Timeout | null = null; // Holds the timer reference
+  private timeoutDuration: number = 15000; // ms
+  private lastMessageTs: number = 0;
+
+  private updateInactivityTimer(): void {
+    this.lastMessageTs = Date.now();
+    const delta = Date.now() - this.lastMessageTs;
+    console.log("updating inactivity timer", this.lastMessageTs, delta);
+    if (this.inactivityTimer) {
+      clearTimeout(this.inactivityTimer);
+      this.inactivityTimer = null;
+    }
+
+    this.inactivityTimer = setTimeout(() => {
+      this.askAgain(); // Function to 'ask again' after the timeout
+    }, this.timeoutDuration);
+  }
+
+  private askAgain(): void {
+    const delta = Date.now() - this.lastMessageTs;
+    console.log("lst", this.lastMessageTs);
+    console.log("now", Date.now());
+    console.log("del", delta);
+
+    if (delta >= this.timeoutDuration) {
+      console.log("ASKING AGAIN -- ");
+      // this.openAi?.sendUserMessageContent([
+      //   { type: "input_text", text: `Ich habe dich nicht verstanden. Kannst du das nochmal wiederholen?`},
+      // ]);
+      this.openAi?.createResponse();
+    }
+  }
+
   constructor(twilioWebSocket: WebSocket) {
     this.twilio = twilioWebSocket;
     this.streamSid = undefined;
@@ -62,7 +95,7 @@ export class TwilioAgent {
     console.log("OPENAI CONNECTED");
 
     this.openAi.realtime.on("server.session.updated", (data) => {
-      console.log("SESSION UPDATED: ", data);
+      console.log("SESSION UPDATED: ");
     });
 
     this.openAi.realtime.on("server.response.audio.delta", (data) => {
@@ -77,6 +110,7 @@ export class TwilioAgent {
           };
           const message = JSON.stringify(audioDelta);
           if (this.twilio.readyState === WebSocket.OPEN) {
+            this.sentToTwilio++;
             this.twilio.send(message);
           } else {
             console.error(
@@ -106,10 +140,28 @@ export class TwilioAgent {
     );
 
     // Send a item and triggers a generation
-    this.openAi.sendUserMessageContent([
-      { type: "input_text", text: `Guten Tag!` },
-    ]);
+    // this.openAi.sendUserMessageContent([
+    //   { type: "input_text", text: `Guten Tag!` },
+    // ]);
+
+    // force first response
     this.openAi.createResponse();
+
+    this.openAi.realtime.on("server.conversation.item.created", (data) => {
+      console.log("conversation.item.created", data);
+      this.updateInactivityTimer();
+    });
+
+    // all events, can use for logging, debugging, or manual event handling
+    // this.openAi.on("realtime.event", ({ time, source, event }) => {
+    //   // time is an ISO timestamp
+    //   // source is 'client' or 'server'
+    //   // event is the raw event payload (json)
+    //   if (event.type !== "input_audio_buffer.append") {
+    //     console.log("realtime.event", time, source, event);
+    //     this.updateInactivityTimer();
+    //   }
+    // });
   }
 
   // Initialize the WebSocket connection
@@ -175,10 +227,10 @@ export class TwilioAgent {
 
   private sendAudioPayloadToOpenAI(audioInBase64: string) {
     if (!this.openAi) {
-      console.error("OpenAI not initialized - can't send audio");
+      // console.error("OpenAI not initialized - can't send audio");
       return;
     } else if (!this.openAi.isConnected()) {
-      console.error("OpenAI not connected - can't send audio");
+      // console.error("OpenAI not connected - can't send audio");
     } else {
       // send manually
       this.openAi.realtime.send("input_audio_buffer.append", {
@@ -190,7 +242,9 @@ export class TwilioAgent {
       // this.openAi.appendInputAudio(buffer);
 
       this.sentToOpenAI++;
-      // console.log("SENT TO OPENAI:", this.sentToOpenAI);
+      // if (this.sentToOpenAI % 10 === 0) {
+      //   console.log("SENT TO OPENAI:", this.sentToOpenAI);
+      // }
     }
   }
 
@@ -226,7 +280,7 @@ export class TwilioAgent {
               description:
                 "Die Anzahl der Erwachsenen im Haushalt des Anrufers: 'Wie viele Erwachsene sind in eurem Haushalt?'",
             },
-            kinder: {
+            anzahlKinder: {
               type: "number",
               description:
                 "Die Anzahl der Kinder im Haushalt des Anrufers: 'Wie viele Kinder habt ihr?'",
