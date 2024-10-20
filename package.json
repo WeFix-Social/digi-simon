@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "tsx watch src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js"
   },
@@ -14,9 +15,15 @@
   "dependencies": {
     "@fastify/formbody": "^8.0.0",
     "@fastify/websocket": "^11.0.0",
+    "@openai/realtime-api-beta": "github:openai/openai-realtime-api-beta",
     "@vercel/node": "^3.2.23",
     "dotenv": "^16.4.5",
     "fastify": "^5.0.0",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.7.1"
   }
 }
