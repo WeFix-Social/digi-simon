@@ -1,6 +1,7 @@
 import { RealtimeClient } from "@openai/realtime-api-beta";
 import WebSocket from "ws";
 import { instructions } from "./instructions";
+import { anspruch } from "./tools";
 
 export class TwilioAgent {
   private twilio: WebSocket;
@@ -36,6 +37,7 @@ export class TwilioAgent {
       throw new Error("OPENAI_API_KEY is not set");
     }
     this.openAi = new RealtimeClient({ apiKey });
+    this.addTools();
 
     this.openAi.updateSession({
       turn_detection: {
@@ -56,48 +58,6 @@ export class TwilioAgent {
       temperature: 0.8,
     });
 
-    // this.openAi.on("conversation.updated", (event) => {
-    // const { item, delta } = event;
-    // const items = this.openAi.conversation.getItems();
-    /**
-     * item is the current item being updated
-     * delta can be null or populated
-     * you can fetch a full list of items at any time
-     */
-
-    // if (delta) {
-    // Only one of the following will be populated for any given event
-    // delta.audio = Int16Array, audio added
-    // delta.transcript = string, transcript added
-    // delta.arguments = string, function arguments added
-    // const streamSid = this.getStreamSid();
-    // if (!streamSid) {
-    //   console.error("No streamSid found - can't send audio to Twilio");
-    //   return;
-    // }
-
-    // if (delta.audio) {
-    //   const audioDelta = {
-    //     event: "media",
-    //     streamSid,
-    //     media: {
-    //       payload: Buffer.from(delta.audio, "base64").toString("base64"),
-    //     },
-    //   };
-    //   const message = JSON.stringify(audioDelta);
-    //   console.log("Sending message to Twilio:", message);
-    //   this.twilio.send(message);
-    //   this.sentToTwilio++;
-    //   // console.log("SENT TO TWILIO:", this.sentToTwilio);
-    // }
-    // if (delta.transcript) {
-    //   this.receivedFromOpenAI++;
-    //   console.log("Transcript:", delta.transcript);
-    //   // console.log("RECEIVED FROM OPENAI:", this.receivedFromOpenAI);
-    // }
-    // }
-    // });
-
     await this.openAi.connect();
     console.log("OPENAI CONNECTED");
 
@@ -107,22 +67,12 @@ export class TwilioAgent {
 
     this.openAi.realtime.on("server.response.audio.delta", (data) => {
       try {
-        let aiMessage;
-        // don't parse if data is not a string
-        if (typeof data !== "string") {
-          aiMessage = data;
-        } else {
-          aiMessage = JSON.parse(data);
-        }
-
-        if (aiMessage.type === "response.audio.delta" && aiMessage.delta) {
+        if (data.type === "response.audio.delta" && data.delta) {
           const audioDelta = {
             event: "media",
             streamSid: this.getStreamSid(),
             media: {
-              payload: Buffer.from(aiMessage.delta, "base64").toString(
-                "base64"
-              ),
+              payload: Buffer.from(data.delta, "base64").toString("base64"),
             },
           };
           const message = JSON.stringify(audioDelta);
@@ -194,17 +144,19 @@ export class TwilioAgent {
 
           break;
         case "start":
-          //     {
+          // Example data on start event:
+          // {
           //   accountSid: 'ACf3b45a367f25e4893102822eaa42e127',
-          // streamSid: 'MZ5a112b97bb5c1033f4c41011cba7662f',
-          // callSid: 'CAec5d8c2a844f2e3d421444c3a250e53a',
-          // tracks: [ 'inbound' ],
-          //         mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: 8000, channels: 1 },
-          //         customParameters: {
-          //           is_incoming: 'true',
-          //           To: '+13053636127',
-          //           CallSid: 'CAec5d8c2a844f2e3d421444c3a250e53a',
-          //           From: '+4917641083120'
+          //   streamSid: 'MZ5a112b97bb5c1033f4c41011cba7662f',
+          //   callSid: 'CAec5d8c2a844f2e3d421444c3a250e53a',
+          //   tracks: [ 'inbound' ],
+          //   mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: 8000, channels: 1 },
+          //   customParameters: {
+          //     is_incoming: 'true',
+          //     To: '+13053636127',
+          //     CallSid: 'CAec5d8c2a844f2e3d421444c3a250e53a',
+          //     From: '+4917641083120'
+          //  }
           // }
           this.streamSid = data.start.streamSid;
           this.fromNumber = data.start.customParameters.From;
@@ -240,5 +192,52 @@ export class TwilioAgent {
       this.sentToOpenAI++;
       // console.log("SENT TO OPENAI:", this.sentToOpenAI);
     }
+  }
+
+  private addTools() {
+    if (!this.openAi) {
+      throw new Error("OpenAI not initialized - can't add tools");
+    }
+
+    this.openAi.addTool(
+      {
+        name: "anspruchBerechnen",
+        description: "Berechne den Anspruch auf Sozialleistungen",
+        parameters: {
+          type: "object",
+          properties: {
+            postleitzahl: {
+              type: "string",
+              description:
+                "Die Postleitzahl des Anrufers: 'In welcher Postleitzahl wohnt ihr?'",
+            },
+            miete: {
+              type: "number",
+              description:
+                "Die Miete, die der Anrufer zahlt: 'Wie viel Miete zahlt ihr insgesamt?'",
+            },
+            einkommen: {
+              type: "number",
+              description:
+                "Das monatliche Einkommen des Haushalts des Anrufers: 'Wie viel Geld verdient ihr im Monat?'",
+            },
+            anzahlErwachsene: {
+              type: "number",
+              description:
+                "Die Anzahl der Erwachsenen im Haushalt des Anrufers: 'Wie viele Erwachsene sind in eurem Haushalt?'",
+            },
+            kinder: {
+              type: "number",
+              description:
+                "Die Anzahl der Kinder im Haushalt des Anrufers: 'Wie viele Kinder habt ihr?'",
+            },
+          },
+          required: ["postleitzahl", "partner", "kinder", "miete", "netto"],
+        },
+      },
+      async (input) => {
+        return await anspruch(input);
+      }
+    );
   }
 }
