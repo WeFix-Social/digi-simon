@@ -1,8 +1,5 @@
-import { z } from "zod";
-
-import { tool } from "@langchain/core/tools";
-
 // const url = "http://localhost:5173/api/anspruchEinfach";
+
 const url = "https://kindergeld.plus/api/anspruchEinfach";
 export async function anspruch(input: any) {
   console.log("Anspruch: input=", input);
@@ -18,26 +15,3 @@ export async function anspruch(input: any) {
 
   return JSON.stringify(data);
 }
-
-const anspruchBerechnen = tool(
-  async (input) => {
-    return await anspruch(input);
-  },
-  {
-    name: "anspruchBerechnen",
-    description: "Berechne den Anspruch auf Sozialleistungen",
-    schema: z.object({
-      postleitzahl: z.string().describe("Die Postleitzahl des Anrufers"),
-      partner: z
-        .boolean()
-        .describe("Ob der Anrufer allein oder mit einem Partner lebt"),
-      kinder: z
-        .number()
-        .describe("Die Anzahl der Kinder im Haushalt des Anrufers"),
-      miete: z.number().describe("Die Miete, die der Anrufer zahlt"),
-      netto: z.number().describe("Das Nettogehalt des Anrufers"),
-    }),
-  }
-);
-
-export const TOOLS = [anspruchBerechnen];
