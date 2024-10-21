@@ -34,54 +34,16 @@ Um das herauszufinden, stellst du der Person, die du berprft, Fragen um herauszu
 - wie viele Kinder sie haben
 - wie viel Miete sie zahlen
 - ob sie arbeiten und wie viel sie Netto im Monat verdienen
-
+Stelle die Fragen nacheinander in einem Dialog, wie ein Gespräch zwischen zwei Menschen.
 
 Dann berechne den Anspruch auf Sozialleistungen und antworte in einem Satz, wie hoch der Anspruch ist.
 
 Spreche Deutsch aber ändere die Sprache falls der Anrufer das will.
-Starte mit "Hallo, hier ist Digi-Simon! Wie kann ich helfen?"
+Starte mit "Hallo, hier ist Digi-Simon!"
 `;
-
-const toolTestMessage = `
-Sage "Hallo, ich rechne .."
-dann Berechne den Anspruch auf Sozialleistungen basierend auf den bereitgestellten Parametern:
-plz: 10115,
-warmmiete: 500,
-kinderAnzahl: 2,
-nettoEinkommen: 1500
-
-Addiere einfach die Werte und sage das Ergebnis.
-`;
-const tools = {
-  name: "anspruchBerechnen",
-  description:
-    "Berechnet den Anspruch auf Sozialleistungen basierend auf den bereitgestellten Parametern",
-  parameters: {
-    type: "object",
-    properties: {
-      postleitzahl: {
-        type: "string",
-        description: "Postleitzahl der Wohnung",
-      },
-      warmmiete: {
-        type: "number",
-        description: "Warmmiete pro Monat",
-      },
-      kinderAnzahl: {
-        type: "number",
-        description: "Anzahl der Kinder im Haushalt",
-      },
-      nettoEinkommen: {
-        type: "number",
-        description: "Nettoverdienst pro Monat",
-      },
-    },
-    required: ["postleitzahl", "warmmiete", "kinderAnzahl", "nettoEinkommen"],
-  },
-};
 
 const VOICE = "alloy";
-const PORT = process.env.PORT || 5050; // Allow dynamic port assignment
+const PORT = process.env.PORT || 3000; // Allow dynamic port assignment
 console.log("got process.env.PORT", process.env.PORT);
 
 // List of Event Types to log to the console. See OpenAI Realtime API Documentation. (session.updated is handled separately.)
@@ -103,6 +65,18 @@ fastify.get("/", async (request, reply) => {
 // Route for Twilio to handle incoming and outgoing calls
 // <Say> punctuation to improve text-to-speech translation
 fastify.all("/incoming-call", async (request, reply) => {
+  const fromNumber = request.query.Caller;
+  const toNumber = request.query.To;
+  const callSid = request.query.CallSid;
+  console.log(
+    "Incoming call: from:",
+    fromNumber,
+    "to:",
+    toNumber,
+    "callSid:",
+    callSid
+  );
+
   const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
                           <Response>
                               <Say>Please wait while we connect your call to the A. I. voice assistant, powered by Twilio and the Open-A.I. Realtime API</Say>
@@ -116,18 +90,34 @@ fastify.all("/incoming-call", async (request, reply) => {
   const twimlResponse2 = `<?xml version="1.0" encoding="UTF-8"?>
                           <Response>
                               <Connect>
-                                  <Stream url="wss://${request.headers.host}/media-stream" />
+                                  <Stream url="wss://${request.headers.host}/media-stream" >
+                                    <Parameter name="is_incoming" value="true"/>
+                                    <Parameter name="to_number" value="${toNumber}"/>
+                                    <Parameter name="from_number" value="${fromNumber}"/>
+                                    <Parameter name="call_sid" value="${callSid}"/>
+                                  </Stream>
                               </Connect>
                           </Response>`;
 
   console.log("request", request.body);
   reply.type("text/xml").send(twimlResponse2);
+  Called;
 });
 
 // WebSocket route for media-stream
 fastify.register(async (fastify) => {
-  fastify.get("/media-stream", { websocket: true }, (connection, req) => {
-    console.log("Client connected");
+  fastify.get("/media-stream", { websocket: true }, (twilioWs, req) => {
+    const fromNumber = req.query.Caller;
+    const toNumber = req.query.To;
+    const callSid = req.query.CallSid;
+    console.log(
+      "Incoming mediastream: from:",
+      fromNumber,
+      "to:",
+      toNumber,
+      "callSid:",
+      callSid
+    );
 
     const openAiWs = new WebSocket(
       "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01",
@@ -145,20 +135,29 @@ fastify.register(async (fastify) => {
       const sessionUpdate = {
         type: "session.update",
         session: {
-          turn_detection: { type: "server_vad" },
+          turn_detection: {
+            type: "server_vad",
+            // default values
+            threshold: 0.8,
+            prefix_padding_ms: 600,
+            silence_duration_ms: 1500,
+          },
           input_audio_format: "g711_ulaw",
           output_audio_format: "g711_ulaw",
           voice: VOICE,
-          //   instructions: toolTestMessage,
           instructions: systemMessageSimon,
           modalities: ["text", "audio"],
-          temperature: 0.8,
+
+          input_audio_transcription: {
+            model: "whisper-1",
+          },
+
+          temperature: 0.0,
 
           //   tools: [tools],
         },
       };
 
-      console.log("Sending session update:", JSON.stringify(sessionUpdate));
       openAiWs.send(JSON.stringify(sessionUpdate));
     };
 
@@ -189,7 +188,9 @@ fastify.register(async (fastify) => {
               payload: Buffer.from(response.delta, "base64").toString("base64"),
             },
           };
-          connection.send(JSON.stringify(audioDelta));
+          const message = JSON.stringify(audioDelta);
+          console.log("Sending message to Twilio:", message);
+          twilioWs.send(message);
         }
       } catch (error) {
         console.error(
@@ -202,8 +203,11 @@ fastify.register(async (fastify) => {
     });
 
     // Handle incoming messages from Twilio
-    connection.on("message", (message) => {
+    twilioWs.on("message", (message) => {
       try {
+        // const messageString = message.toString();
+        // console.log("TWILIO MESSAGE:", messageString);
+
         const data = JSON.parse(message);
 
         switch (data.event) {
@@ -219,7 +223,7 @@ fastify.register(async (fastify) => {
             break;
           case "start":
             streamSid = data.start.streamSid;
-            console.log("Incoming stream has started", streamSid);
+            console.log("Incoming stream has started", data, streamSid);
             break;
           default:
             console.log("Received non-media event:", data.event);
@@ -231,7 +235,7 @@ fastify.register(async (fastify) => {
     });
 
     // Handle connection close
-    connection.on("close", () => {
+    twilioWs.on("close", () => {
       if (openAiWs.readyState === WebSocket.OPEN) openAiWs.close();
       console.log("Client disconnected.");
     });
