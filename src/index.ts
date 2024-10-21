@@ -64,9 +64,15 @@ fastify.register(async function (fastify) {
     { websocket: true },
     async (twilioWebSocket /* WebSocket*/, req /* FastifyRequest */) => {
       console.log("Twilio WebSocket media-stream connected");
-      const agent = new TwilioAgent(twilioWebSocket as WebSocket);
+      let agent = new TwilioAgent(twilioWebSocket as WebSocket);
       await agent.setup();
       // TODO: how to destroy the agent when the connection is closed?
+
+      twilioWebSocket.onclose = (event: CloseEvent) => {
+        console.log("Twilio WebSocket connection closed");
+        agent.disconnect();
+        agent = null;
+      };
     }
   );
 });

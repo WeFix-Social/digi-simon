@@ -60,6 +60,18 @@ export class TwilioAgent {
     await this.setupOpenAI();
   }
 
+  public disconnect() {
+    this.openAi?.disconnect();
+    this.clearTimers();
+  }
+
+  private clearTimers() {
+    if (this.inactivityTimer) {
+      clearTimeout(this.inactivityTimer);
+      this.inactivityTimer = null;
+    }
+  }
+
   private getStreamSid(): string | undefined {
     return this.streamSid;
   }
@@ -175,9 +187,9 @@ export class TwilioAgent {
       this.handleIncomingTwilioMessage(message);
     };
 
-    this.twilio.onclose = (event: CloseEvent) => {
-      console.log("Twilio WebSocket connection closed");
-    };
+    // this.twilio.onclose = (event: CloseEvent) => {
+    //   console.log("Twilio WebSocket connection closed");
+    // };
 
     this.twilio.onerror = (error: Event) => {
       console.error("WebSocket error occurred:", error);
