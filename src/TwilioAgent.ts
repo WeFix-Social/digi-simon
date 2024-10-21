@@ -18,7 +18,7 @@ export class TwilioAgent {
   private receivedFromTwilio: number = 0;
 
   private inactivityTimer: NodeJS.Timeout | null = null; // Holds the timer reference
-  private timeoutDuration: number = 15000; // ms
+  private timeoutDuration: number = 30000; // ms
   private lastMessageTs: number = 0;
 
   private updateInactivityTimer(): void {
